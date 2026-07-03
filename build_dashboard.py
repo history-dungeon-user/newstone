@@ -56,12 +56,20 @@ def history(sector):
     return df
 
 def market_latest(sector):
-    """market_sector 테이블에서 해당 섹터의 최신 등락률 데이터를 가져옴. 없으면 None."""
+    """market_sector에서 뉴스 TARGET 날짜와 '정확히 같은 날'의 데이터만 반환.
+    KRX는 전일 데이터가 익일 오전에야 공개되므로, 같은 날 데이터가 없는 경우가 흔함.
+    이 경우 None을 반환하고, 대신 가장 최근 날짜를 참고용으로 함께 돌려준다(비교용 아님)."""
     try:
         df = pd.read_sql("SELECT * FROM market_sector WHERE sector=? ORDER BY date", con, params=(sector,))
     except Exception:
-        return None
-    return df.iloc[-1] if not df.empty else None
+        return None, None
+    if df.empty:
+        return None, None
+    exact = df[df["date"] == TARGET.isoformat()]
+    if not exact.empty:
+        return exact.iloc[-1], None
+    # 같은 날 데이터가 없으면: 비교에는 쓰지 않되, 가장 최근 값을 '참고용'으로만 전달
+    return None, df.iloc[-1]
 
 def market_history(sector):
     """market_sector 테이블에서 해당 섹터의 날짜별 등락률 전체를 가져옴. 없으면 빈 DataFrame."""
@@ -155,18 +163,23 @@ for sector in SECTORS:
           else f"rgba(192,57,43,{min(-net/0.5,1):.2f})")
     heat.append(f'<div class="cell" style="background:{bg}"><b>{sector}</b><span>{net:+.2f}</span></div>')
 
-    # 시장데이터(KRX) 매칭 - 없으면 "-"로 표시 (KRX 미연결/데이터없음 모두 이 경우)
-    mkt = market_latest(sector)
+    # 시장데이터(KRX) 매칭 - 뉴스와 '정확히 같은 날'일 때만 다이버전스 비교
+    mkt, mkt_ref = market_latest(sector)
     if mkt is not None:
         ret = mkt["avg_return"]
         ret_cell = f"<td class='num {'pos' if ret>=0 else 'neg'}'>{ret:+.2f}%</td>"
-        # 다이버전스: 오늘 뉴스 톤의 방향(긍정/부정)과 오늘 주가 등락 방향이 엇갈리는지
         tone_dir = "up" if net >= 0 else "down"
         price_dir = "up" if ret >= 0 else "down"
         if tone_dir != price_dir:
             div_cell = "<td style='color:#c0392b;font-weight:600'>다이버전스</td>"
         else:
             div_cell = "<td style='color:#888'>일치</td>"
+    elif mkt_ref is not None:
+        # 날짜가 다른 참고용 데이터 - 비교(다이버전스 판정)에는 쓰지 않고 날짜를 명시해 오해 방지
+        ret = mkt_ref["avg_return"]
+        ret_cell = (f"<td class='num {'pos' if ret>=0 else 'neg'}' style='opacity:.55'>"
+                    f"{ret:+.2f}%<br><span style='font-size:10px'>({mkt_ref['date']} 기준)</span></td>")
+        div_cell = "<td style='color:#bbb'>날짜상이</td>"
     else:
         ret_cell = "<td class='num' style='color:#bbb'>-</td>"
         div_cell = "<td style='color:#bbb'>-</td>"
@@ -233,8 +246,8 @@ page = f"""<!doctype html><html lang="ko"><head><meta charset="utf-8">
 <div class="legend">
  · <b>순점수</b> = (긍정−부정)/기사수 (−1~+1) · <b>z-score</b> ±1.5 이상이면 극단 신호<br>
  · 증시필터: 기사에 '실적·주가·수주' 등 증시 단어가 있어야 점수화 → 증시 무관 기사 제외<br>
- · <b>섹터 등락률</b>: KRX 공식데이터 기준 해당 섹터(WICS 소분류/대표종목) 평균 등락률<br>
- · <b>뉴스vs주가</b>: 오늘 뉴스 톤(긍/부정)과 오늘 주가 등락 방향이 엇갈리면 '다이버전스' 표시 (둘 중 하나가 과장 신호일 가능성)<br>
+ · <b>섹터 등락률</b>: KRX 공식데이터 기준 해당 섹터(WICS 소분류/대표종목)의 <b>중앙값</b> 등락률 (기준가 재설정 등 이상치 영향 최소화)<br>
+ · <b>뉴스vs주가</b>: 뉴스와 <b>정확히 같은 날짜</b>의 주가 데이터가 있을 때만 방향을 비교해 '다이버전스/일치' 표시. 날짜가 다르면(KRX 데이터 지연 등) '날짜상이'로 표시하고 비교하지 않음<br>
  · 추이선이 <b>파란 띠를 위로 뚫으면 과열</b>, 아래로 뚫으면 공포 → "지금 이 가격에 사겠는가" 재점검 신호<br>
  · 카드 하단의 겹친 그래프: <span style="color:#2c3e50">━ 남색 실선(뉴스톤)</span>과 <span style="color:#e67e22">┅ 주황 점선(섹터 등락률)</span> — 두 지표는 단위가 달라 각자 범위로 정규화해 겹쳐 그렸습니다. 데이터가 2일 이상 쌓인 섹터부터 표시됩니다.<br>
  · 매수·매도 지시가 아니라 <b>심리 경계등</b>입니다. · 매일 자동 갱신됩니다.
