@@ -1,0 +1,43 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8">
+<title>뉴스톤 대시보드 2026-07-02</title>
+<meta name="robots" content="noindex, nofollow">
+<style>
+ body{font-family:'맑은 고딕','Malgun Gothic',sans-serif;background:#f6f7f9;margin:0;padding:28px;color:#222}
+ h1{font-size:20px;margin:0 0 2px} h2{font-size:15px;margin:26px 0 10px;color:#2c3e50}
+ .date{color:#888;margin-bottom:18px;font-size:13px}
+ .heat{display:flex;flex-wrap:wrap;gap:8px}
+ .cell{flex:1 1 110px;min-width:110px;padding:12px;border-radius:8px;text-align:center;border:1px solid #0001}
+ .cell b{display:block;font-size:13px} .cell span{font-size:18px;font-variant-numeric:tabular-nums}
+ table{border-collapse:collapse;background:#fff;box-shadow:0 1px 4px #0001;border-radius:8px;overflow:hidden;width:100%}
+ th,td{padding:10px 14px;border-bottom:1px solid #eee;text-align:left;font-size:13.5px}
+ th{background:#2c3e50;color:#fff;font-size:12.5px} .sec{font-weight:600}
+ .num{text-align:right;font-variant-numeric:tabular-nums} tr:last-child td{border-bottom:none}
+ .pos{color:#27ae60} .neg{color:#c0392b} .neu{color:#999}
+ .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:14px}
+ .card{background:#fff;border-radius:8px;box-shadow:0 1px 4px #0001;padding:12px}
+ .ct{display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px}
+ .ct span{font-variant-numeric:tabular-nums}
+ .legend{margin-top:18px;color:#666;font-size:12.5px;line-height:1.8}
+</style></head><body>
+<h1>뉴스톤 대시보드</h1>
+<div class="date">2026-07-02 기준 · 섹터별 뉴스 긍·부정 톤 · 누적 1일 · 증시필터 ON · 자동갱신(GitHub Actions)</div>
+
+<h2>① 해당일 한눈에 (히트맵)</h2>
+<div class="heat"><div class="cell" style="background:rgba(39,174,96,0.92)"><b>디스플레이</b><span>+0.46</span></div><div class="cell" style="background:rgba(39,174,96,0.93)"><b>2차전지</b><span>+0.46</span></div><div class="cell" style="background:rgba(39,174,96,0.47)"><b>방산</b><span>+0.24</span></div><div class="cell" style="background:rgba(39,174,96,1.00)"><b>조선</b><span>+0.64</span></div><div class="cell" style="background:rgba(39,174,96,0.38)"><b>바이오</b><span>+0.19</span></div><div class="cell" style="background:rgba(39,174,96,0.33)"><b>제약</b><span>+0.17</span></div><div class="cell" style="background:rgba(39,174,96,0.73)"><b>화장품</b><span>+0.37</span></div><div class="cell" style="background:rgba(39,174,96,0.50)"><b>유통</b><span>+0.25</span></div><div class="cell" style="background:rgba(39,174,96,0.70)"><b>원전</b><span>+0.35</span></div></div>
+
+<h2>② 정확한 수치</h2>
+<table>
+ <tr><th>섹터</th><th>순점수</th><th>20일 평균</th><th>z-score</th><th>신호</th><th>긍정</th><th>중립</th><th>부정</th><th>기사수</th></tr>
+ <tr><td class='sec'>디스플레이</td><td class='num'>+0.459</td><td class='num'>+0.459</td><td class='num'>+0.00</td><td style='color:#666;font-weight:600'>중립</td><td class='num pos'>59</td><td class='num neu'>41</td><td class='num neg'>9</td><td class='num'>109</td></tr><tr><td class='sec'>2차전지</td><td class='num'>+0.464</td><td class='num'>+0.464</td><td class='num'>+0.00</td><td style='color:#666;font-weight:600'>중립</td><td class='num pos'>49</td><td class='num neu'>25</td><td class='num neg'>10</td><td class='num'>84</td></tr><tr><td class='sec'>방산</td><td class='num'>+0.237</td><td class='num'>+0.237</td><td class='num'>+0.00</td><td style='color:#666;font-weight:600'>중립</td><td class='num pos'>27</td><td class='num neu'>40</td><td class='num neg'>9</td><td class='num'>76</td></tr><tr><td class='sec'>조선</td><td class='num'>+0.636</td><td class='num'>+0.636</td><td class='num'>+0.00</td><td style='color:#666;font-weight:600'>중립</td><td class='num pos'>80</td><td class='num neu'>20</td><td class='num neg'>10</td><td class='num'>110</td></tr><tr><td class='sec'>바이오</td><td class='num'>+0.191</td><td class='num'>+0.191</td><td class='num'>+0.00</td><td style='color:#666;font-weight:600'>중립</td><td class='num pos'>16</td><td class='num neu'>49</td><td class='num neg'>3</td><td class='num'>68</td></tr><tr><td class='sec'>제약</td><td class='num'>+0.167</td><td class='num'>+0.167</td><td class='num'>+0.00</td><td style='color:#666;font-weight:600'>중립</td><td class='num pos'>3</td><td class='num neu'>1</td><td class='num neg'>2</td><td class='num'>6</td></tr><tr><td class='sec'>화장품</td><td class='num'>+0.367</td><td class='num'>+0.367</td><td class='num'>+0.00</td><td style='color:#666;font-weight:600'>중립</td><td class='num pos'>64</td><td class='num neu'>47</td><td class='num neg'>17</td><td class='num'>128</td></tr><tr><td class='sec'>유통</td><td class='num'>+0.250</td><td class='num'>+0.250</td><td class='num'>+0.00</td><td style='color:#666;font-weight:600'>중립</td><td class='num pos'>22</td><td class='num neu'>51</td><td class='num neg'>3</td><td class='num'>76</td></tr><tr><td class='sec'>원전</td><td class='num'>+0.351</td><td class='num'>+0.351</td><td class='num'>+0.00</td><td style='color:#666;font-weight:600'>중립</td><td class='num pos'>26</td><td class='num neu'>25</td><td class='num neg'>6</td><td class='num'>57</td></tr>
+</table>
+
+<h2>③ 섹터별 추이 (진한선=톤, 점선=20일평균, 띠=정상범위)</h2>
+<div class="grid"><div class="card"><div class="ct"><b>디스플레이</b><span style="color:#666">+0.459 · 중립</span></div><svg viewBox="0 0 300 96" width="100%" height="96" preserveAspectRatio="none"><circle cx="150.0" cy="48.0" r="3.2" fill="#2c3e50"/></svg></div><div class="card"><div class="ct"><b>2차전지</b><span style="color:#666">+0.464 · 중립</span></div><svg viewBox="0 0 300 96" width="100%" height="96" preserveAspectRatio="none"><circle cx="150.0" cy="48.0" r="3.2" fill="#2c3e50"/></svg></div><div class="card"><div class="ct"><b>방산</b><span style="color:#666">+0.237 · 중립</span></div><svg viewBox="0 0 300 96" width="100%" height="96" preserveAspectRatio="none"><circle cx="150.0" cy="48.0" r="3.2" fill="#2c3e50"/></svg></div><div class="card"><div class="ct"><b>조선</b><span style="color:#666">+0.636 · 중립</span></div><svg viewBox="0 0 300 96" width="100%" height="96" preserveAspectRatio="none"><circle cx="150.0" cy="48.0" r="3.2" fill="#2c3e50"/></svg></div><div class="card"><div class="ct"><b>바이오</b><span style="color:#666">+0.191 · 중립</span></div><svg viewBox="0 0 300 96" width="100%" height="96" preserveAspectRatio="none"><circle cx="150.0" cy="48.0" r="3.2" fill="#2c3e50"/></svg></div><div class="card"><div class="ct"><b>제약</b><span style="color:#666">+0.167 · 중립</span></div><svg viewBox="0 0 300 96" width="100%" height="96" preserveAspectRatio="none"><circle cx="150.0" cy="48.0" r="3.2" fill="#2c3e50"/></svg></div><div class="card"><div class="ct"><b>화장품</b><span style="color:#666">+0.367 · 중립</span></div><svg viewBox="0 0 300 96" width="100%" height="96" preserveAspectRatio="none"><circle cx="150.0" cy="48.0" r="3.2" fill="#2c3e50"/></svg></div><div class="card"><div class="ct"><b>유통</b><span style="color:#666">+0.250 · 중립</span></div><svg viewBox="0 0 300 96" width="100%" height="96" preserveAspectRatio="none"><circle cx="150.0" cy="48.0" r="3.2" fill="#2c3e50"/></svg></div><div class="card"><div class="ct"><b>원전</b><span style="color:#666">+0.351 · 중립</span></div><svg viewBox="0 0 300 96" width="100%" height="96" preserveAspectRatio="none"><circle cx="150.0" cy="48.0" r="3.2" fill="#2c3e50"/></svg></div></div>
+
+<div class="legend">
+ · <b>순점수</b> = (긍정−부정)/기사수 (−1~+1) · <b>z-score</b> ±1.5 이상이면 극단 신호<br>
+ · 증시필터: 기사에 '실적·주가·수주' 등 증시 단어가 있어야 점수화 → 증시 무관 기사 제외<br>
+ · 추이선이 <b>파란 띠를 위로 뚫으면 과열</b>, 아래로 뚫으면 공포 → "지금 이 가격에 사겠는가" 재점검 신호<br>
+ · 매수·매도 지시가 아니라 <b>심리 경계등</b>입니다. · 매일 자동 갱신됩니다.
+</div>
+</body></html>
