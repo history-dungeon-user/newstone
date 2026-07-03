@@ -24,11 +24,19 @@ jobs:
       - name: 부품(라이브러리) 설치
         run: pip install requests pandas numpy transformers torch --index-url https://download.pytorch.org/whl/cpu --extra-index-url https://pypi.org/simple
 
-      - name: 뉴스톤 실행
+      - name: 뉴스 수집·채점
         env:
           NAVER_ID: ${{ secrets.NAVER_ID }}
           NAVER_SECRET: ${{ secrets.NAVER_SECRET }}
         run: python news_tone.py
+
+      - name: KRX 시장데이터 수집
+        env:
+          KRX_AUTH_KEY: ${{ secrets.KRX_AUTH_KEY }}
+        run: python krx_market.py
+
+      - name: 대시보드 생성
+        run: python build_dashboard.py
 
       - name: 결과물 저장소에 반영
         run: |
