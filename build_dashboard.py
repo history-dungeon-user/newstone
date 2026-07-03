@@ -63,6 +63,57 @@ def market_latest(sector):
         return None
     return df.iloc[-1] if not df.empty else None
 
+def market_history(sector):
+    """market_sector 테이블에서 해당 섹터의 날짜별 등락률 전체를 가져옴. 없으면 빈 DataFrame."""
+    try:
+        df = pd.read_sql("SELECT date, avg_return FROM market_sector WHERE sector=? ORDER BY date", con, params=(sector,))
+    except Exception:
+        return pd.DataFrame(columns=["date", "avg_return"])
+    return df
+
+def svg_overlay(tone_df, price_df, w=300, h=40, pad=10):
+    """뉴스 톤(남색)과 섹터 주가등락률(주황 점선)을 같은 그래프에 겹쳐 그림.
+    두 값의 단위가 다르므로 각자 자기 범위로 정규화(dual-axis)한다.
+    주가 데이터가 없거나 1개뿐이면 톤 선만 그림."""
+    rows = tone_df.to_dict("records"); n = len(rows)
+    if n == 0:
+        return "<svg></svg>"
+    nets = [r["net"] for r in rows]
+    tmin, tmax = min(nets), max(nets)
+    if tmax - tmin < 0.05: tmin -= 0.05; tmax += 0.05
+
+    price_map = dict(zip(price_df["date"], price_df["avg_return"])) if not price_df.empty else {}
+    aligned = [price_map.get(rows[i]["date"]) for i in range(n)]
+    valid = [p for p in aligned if p is not None]
+    has_price = len(valid) >= 2
+    if has_price:
+        pmin, pmax = min(valid), max(valid)
+        if pmax - pmin < 0.1: pmin -= 0.1; pmax += 0.1
+
+    def X(i): return pad + (w-2*pad)*(i/(n-1) if n > 1 else 0.5)
+    def Yt(v): return pad + (h-2*pad)*(1-(v-tmin)/(tmax-tmin))
+    def Yp(v): return pad + (h-2*pad)*(1-(v-pmin)/(pmax-pmin))
+
+    p = [f'<svg viewBox="0 0 {w} {h}" width="100%" height="{h}" preserveAspectRatio="none">']
+    p.append('<polyline points="' + "".join(f"{X(i):.1f},{Yt(nets[i]):.1f} " for i in range(n)) +
+             '" fill="none" stroke="#2c3e50" stroke-width="1.6"/>')
+    if has_price:
+        seg = []
+        for i in range(n):
+            v = aligned[i]
+            if v is None:
+                if len(seg) > 1:
+                    p.append('<polyline points="' + " ".join(seg) +
+                             '" fill="none" stroke="#e67e22" stroke-width="1.6" stroke-dasharray="4 2"/>')
+                seg = []
+            else:
+                seg.append(f"{X(i):.1f},{Yp(v):.1f}")
+        if len(seg) > 1:
+            p.append('<polyline points="' + " ".join(seg) +
+                     '" fill="none" stroke="#e67e22" stroke-width="1.6" stroke-dasharray="4 2"/>')
+    p.append("</svg>")
+    return "".join(p), has_price
+
 def svg_trend(df, w=300, h=96, pad=12):
     rows = df.to_dict("records"); n = len(rows)
     nets = [r["net"] for r in rows]; mas = [r["ma20"] for r in rows]
@@ -128,9 +179,16 @@ for sector in SECTORS:
                  f"<td class='num neg'>{int(last['neg'])}</td>"
                  f"<td class='num'>{int(last['n'])}{note}</td>"
                  f"{ret_cell}{div_cell}</tr>")
+    price_hist = market_history(sector)
+    overlay_svg, has_overlay = svg_overlay(df, price_hist)
+    overlay_block = (f'<div class="overlay-wrap">{overlay_svg}'
+                      f'<div class="overlay-legend"><span class="lg-tone">━ 뉴스톤</span>'
+                      f'<span class="lg-price">┅ 섹터등락률</span></div></div>'
+                      if has_overlay else "")
+
     cards.append(f'<div class="card"><div class="ct"><b>{sector}</b>'
                  f'<span style="color:{color}">{net:+.3f} · {flag}</span></div>'
-                 f'{svg_trend(df)}</div>')
+                 f'{svg_trend(df)}{overlay_block}</div>')
 
 log("\n[4/4] 대시보드 생성")
 page = f"""<!doctype html><html lang="ko"><head><meta charset="utf-8">
@@ -151,6 +209,9 @@ page = f"""<!doctype html><html lang="ko"><head><meta charset="utf-8">
  .grid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:14px}}
  .card{{background:#fff;border-radius:8px;box-shadow:0 1px 4px #0001;padding:12px}}
  .ct{{display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px}}
+ .overlay-wrap{{margin-top:6px;border-top:1px dashed #eee;padding-top:6px}}
+ .overlay-legend{{display:flex;gap:12px;font-size:11px;color:#888;margin-top:2px}}
+ .lg-tone{{color:#2c3e50}} .lg-price{{color:#e67e22}}
  .ct span{{font-variant-numeric:tabular-nums}}
  .legend{{margin-top:18px;color:#666;font-size:12.5px;line-height:1.8}}
 </style></head><body>
@@ -175,6 +236,7 @@ page = f"""<!doctype html><html lang="ko"><head><meta charset="utf-8">
  · <b>섹터 등락률</b>: KRX 공식데이터 기준 해당 섹터(WICS 소분류/대표종목) 평균 등락률<br>
  · <b>뉴스vs주가</b>: 오늘 뉴스 톤(긍/부정)과 오늘 주가 등락 방향이 엇갈리면 '다이버전스' 표시 (둘 중 하나가 과장 신호일 가능성)<br>
  · 추이선이 <b>파란 띠를 위로 뚫으면 과열</b>, 아래로 뚫으면 공포 → "지금 이 가격에 사겠는가" 재점검 신호<br>
+ · 카드 하단의 겹친 그래프: <span style="color:#2c3e50">━ 남색 실선(뉴스톤)</span>과 <span style="color:#e67e22">┅ 주황 점선(섹터 등락률)</span> — 두 지표는 단위가 달라 각자 범위로 정규화해 겹쳐 그렸습니다. 데이터가 2일 이상 쌓인 섹터부터 표시됩니다.<br>
  · 매수·매도 지시가 아니라 <b>심리 경계등</b>입니다. · 매일 자동 갱신됩니다.
 </div>
 </body></html>"""
