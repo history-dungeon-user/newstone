@@ -1,0 +1,39 @@
+name: 뉴스톤 매일 자동 실행
+
+on:
+  schedule:
+    # 매일 UTC 09:30 = 한국시간(KST) 18:30 실행
+    - cron: '30 9 * * *'
+  workflow_dispatch: {}   # 이 버튼으로 수동 실행도 가능 (테스트용)
+
+permissions:
+  contents: write   # 결과물(대시보드/DB)을 저장소에 다시 커밋하기 위한 권한
+
+jobs:
+  run-newstone:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 저장소 코드 가져오기
+        uses: actions/checkout@v4
+
+      - name: 파이썬 설치
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 부품(라이브러리) 설치
+        run: pip install requests pandas numpy transformers torch --index-url https://download.pytorch.org/whl/cpu --extra-index-url https://pypi.org/simple
+
+      - name: 뉴스톤 실행
+        env:
+          NAVER_ID: ${{ secrets.NAVER_ID }}
+          NAVER_SECRET: ${{ secrets.NAVER_SECRET }}
+        run: python news_tone.py
+
+      - name: 결과물 저장소에 반영
+        run: |
+          git config user.name "newstone-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add newstone.db docs/index.html
+          git diff --quiet --cached || git commit -m "뉴스톤 자동 업데이트 $(date +'%Y-%m-%d %H:%M')"
+          git push
