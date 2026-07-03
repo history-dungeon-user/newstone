@@ -98,28 +98,35 @@ con.execute("""CREATE TABLE IF NOT EXISTS market_sector(
 target_iso = dt.datetime.strptime(found_date, "%Y%m%d").date().isoformat()
 results = []
 
+def agg_sector(sub, sector_name, tag=""):
+    """섹터 집계: 단순평균 대신 중앙값(median) 사용 - 감자/액면분할 등 기준가 재설정 종목의
+    극단치(예: -90%)가 소수 섞여도 전체 수치가 왜곡되지 않도록 함.
+    동시에 상하위 3종목을 로그에 남겨, 수치가 실제 시장과 맞는지 사람이 검증할 수 있게 함."""
+    avg = round(sub["FLUC_RT"].median(), 3)
+    up = int((sub["FLUC_RT"] > 0).sum()); down = int((sub["FLUC_RT"] < 0).sum())
+    top3 = sub.nlargest(3, "FLUC_RT")[["ISU_NM", "FLUC_RT"]].values.tolist()
+    bot3 = sub.nsmallest(3, "FLUC_RT")[["ISU_NM", "FLUC_RT"]].values.tolist()
+    log(f"   - {sector_name:7s}: 중앙값등락률 {avg:+.2f}%  (상승{up}/하락{down}/{len(sub)}종목){tag}")
+    log(f"       상위: {', '.join(f'{n} {v:+.1f}%' for n,v in top3)}")
+    log(f"       하위: {', '.join(f'{n} {v:+.1f}%' for n,v in bot3)}")
+    return avg, up, down
+
 for sector, wics_list in SECTOR_WICS.items():
     sub = merged[merged["WICS소"].isin(wics_list)]
     if sub.empty: continue
-    avg = round(sub["FLUC_RT"].mean(), 3)
-    up = int((sub["FLUC_RT"] > 0).sum()); down = int((sub["FLUC_RT"] < 0).sum())
+    avg, up, down = agg_sector(sub, sector)
     results.append((target_iso, sector, avg, len(sub), up, down))
-    log(f"   - {sector:7s}: 평균등락률 {avg:+.2f}%  (상승{up}/하락{down}/{len(sub)}종목)")
 
 for sector, codes in THEME_BASKETS.items():
     codes6 = [c.zfill(6) for c in codes]
     sub = all_rows[all_rows["ISU_CD"].isin(codes6)]
     if sub.empty: continue
-    avg = round(sub["FLUC_RT"].mean(), 3)
-    up = int((sub["FLUC_RT"] > 0).sum()); down = int((sub["FLUC_RT"] < 0).sum())
+    avg, up, down = agg_sector(sub, sector, tag=" [테마바스켓]")
     results.append((target_iso, sector, avg, len(sub), up, down))
-    log(f"   - {sector:7s}: 평균등락률 {avg:+.2f}%  (상승{up}/하락{down}/{len(sub)}종목) [테마바스켓]")
 
-# 시장전체 = KOSPI+KOSDAQ 전종목 평균
-avg_all = round(all_rows["FLUC_RT"].mean(), 3)
-up_all = int((all_rows["FLUC_RT"] > 0).sum()); down_all = int((all_rows["FLUC_RT"] < 0).sum())
+# 시장전체 = KOSPI+KOSDAQ 전종목 중앙값
+avg_all, up_all, down_all = agg_sector(all_rows, "시장전체")
 results.append((target_iso, "시장전체", avg_all, len(all_rows), up_all, down_all))
-log(f"   - {'시장전체':7s}: 평균등락률 {avg_all:+.2f}%  (상승{up_all}/하락{down_all}/{len(all_rows)}종목)")
 
 con.executemany("INSERT OR REPLACE INTO market_sector VALUES (?,?,?,?,?,?)", results)
 con.commit(); con.close()
