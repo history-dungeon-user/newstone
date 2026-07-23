@@ -229,7 +229,7 @@ page = f"""<!doctype html><html lang="ko"><head><meta charset="utf-8">
  .legend{{margin-top:18px;color:#666;font-size:12.5px;line-height:1.8}}
 </style></head><body>
 <h1>뉴스톤 대시보드</h1>
-<div class="date">{TARGET} 기준 · 섹터별 뉴스 긍·부정 톤 · 누적 {maxdays}일 · 증시필터 {'ON' if USE_FILTER else 'OFF'} · 자동갱신(GitHub Actions)</div>
+<div class="date"><a href="analysis.html" style="color:#1e6fb8">📊 톤–주가 상관분석 리포트 보기</a><br>{TARGET} 기준 · 섹터별 뉴스 긍·부정 톤 · 누적 {maxdays}일 · 증시필터 {'ON' if USE_FILTER else 'OFF'} · 자동갱신(GitHub Actions)</div>
 
 <h2>① 해당일 한눈에 (히트맵)</h2>
 <div class="heat">{''.join(heat)}</div>
