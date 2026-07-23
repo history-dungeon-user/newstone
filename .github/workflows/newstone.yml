@@ -25,12 +25,14 @@ jobs:
         run: pip install requests pandas numpy transformers torch --index-url https://download.pytorch.org/whl/cpu --extra-index-url https://pypi.org/simple
 
       - name: 뉴스 수집·채점
+        continue-on-error: true   # 실패해도 이후 단계(대시보드·커밋)는 계속 진행
         env:
           NAVER_ID: ${{ secrets.NAVER_ID }}
           NAVER_SECRET: ${{ secrets.NAVER_SECRET }}
         run: python news_tone.py
 
       - name: KRX 시장데이터 수집
+        continue-on-error: true   # KRX 장애/미공개여도 job 전체를 중단시키지 않음
         env:
           KRX_AUTH_KEY: ${{ secrets.KRX_AUTH_KEY }}
         run: python krx_market.py
@@ -39,9 +41,11 @@ jobs:
         run: python build_dashboard.py
 
       - name: 결과물 저장소에 반영
+        if: always()   # 앞 단계 실패와 무관하게 수집된 만큼은 반드시 저장
         run: |
           git config user.name "newstone-bot"
           git config user.email "actions@users.noreply.github.com"
           git add newstone.db docs/index.html
           git diff --quiet --cached || git commit -m "뉴스톤 자동 업데이트 $(date +'%Y-%m-%d %H:%M')"
+          git pull --rebase --autostash || true
           git push
