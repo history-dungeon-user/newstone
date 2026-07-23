@@ -40,12 +40,16 @@ jobs:
       - name: 대시보드 생성
         run: python build_dashboard.py
 
+      - name: 상관분석 리포트 생성
+        continue-on-error: true   # 표본 부족 등으로 실패해도 전체는 계속
+        run: python analyze.py
+
       - name: 결과물 저장소에 반영
         if: always()   # 앞 단계 실패와 무관하게 수집된 만큼은 반드시 저장
         run: |
           git config user.name "newstone-bot"
           git config user.email "actions@users.noreply.github.com"
-          git add newstone.db docs/index.html
+          git add newstone.db docs/index.html docs/analysis.html
           git diff --quiet --cached || git commit -m "뉴스톤 자동 업데이트 $(date +'%Y-%m-%d %H:%M')"
           git pull --rebase --autostash || true
           git push
