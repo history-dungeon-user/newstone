@@ -63,71 +63,98 @@ def fetch_market(endpoint, bas_dd):
     rows = data.get("OutBlock_1") or []
     return rows if rows else None
 
-# 최근 영업일 찾기 (오늘부터 최대 10일 거슬러 감 - 휴장일/데이터 지연 대응)
+# ---------------------------------------------------------------------
+#  [개선] 최근 BACKFILL_DAYS일 중 'DB에 아직 없는 날짜'를 모두 찾아 채운다.
+#   - 기존: 가장 최근 거래일 1개만 저장 → 실행이 하루라도 실패하면 그 거래일은 영구 누락
+#   - 개선: 빠진 날을 스스로 되채움(self-healing). 주말·공휴일은 데이터가 없으므로 자동 skip
+# ---------------------------------------------------------------------
+BACKFILL_DAYS = 10
+
 now_kst = dt.datetime.now(ZoneInfo("Asia/Seoul"))
-found_date, kospi_rows, kosdaq_rows = None, None, None
-for d in range(0, 10):
-    cand = (now_kst.date() - dt.timedelta(days=d)).strftime("%Y%m%d")
-    kospi_rows = fetch_market(ENDPOINTS["KOSPI"], cand)
-    kosdaq_rows = fetch_market(ENDPOINTS["KOSDAQ"], cand)
-    if kospi_rows and kosdaq_rows:
-        found_date = cand
-        break
 
-if not found_date:
-    log("[실패] 최근 10일 내 KRX 데이터를 받지 못했습니다.")
-    sys.exit(1)
-
-log(f"[1/3] KRX 데이터 수신: {found_date} (KOSPI {len(kospi_rows)}종목, KOSDAQ {len(kosdaq_rows)}종목)")
-
-all_rows = pd.DataFrame(kospi_rows + kosdaq_rows)
-all_rows["ISU_CD"] = all_rows["ISU_CD"].astype(str).str.zfill(6)
-all_rows["FLUC_RT"] = pd.to_numeric(all_rows["FLUC_RT"], errors="coerce")
-all_rows = all_rows.dropna(subset=["FLUC_RT"])
-
-wics = pd.read_csv(WICS_PATH, dtype=str)
-wics["종목코드"] = wics["종목코드"].str.zfill(6)
-merged = all_rows.merge(wics[["종목코드", "WICS소"]], left_on="ISU_CD", right_on="종목코드", how="left")
-
-log("[2/3] 섹터별 집계")
 con = sqlite3.connect(DB_PATH)
 con.execute("""CREATE TABLE IF NOT EXISTS market_sector(
     date TEXT, sector TEXT, avg_return REAL, n_stocks INT, n_up INT, n_down INT,
     PRIMARY KEY(date, sector))""")
+existing = {r[0] for r in con.execute("SELECT DISTINCT date FROM market_sector").fetchall()}
 
-target_iso = dt.datetime.strptime(found_date, "%Y%m%d").date().isoformat()
-results = []
+wics = pd.read_csv(WICS_PATH, dtype=str)
+wics["종목코드"] = wics["종목코드"].str.zfill(6)
 
-def agg_sector(sub, sector_name, tag=""):
+def agg_sector(sub, sector_name, tag="", verbose=True):
     """섹터 집계: 단순평균 대신 중앙값(median) 사용 - 감자/액면분할 등 기준가 재설정 종목의
-    극단치(예: -90%)가 소수 섞여도 전체 수치가 왜곡되지 않도록 함.
-    동시에 상하위 3종목을 로그에 남겨, 수치가 실제 시장과 맞는지 사람이 검증할 수 있게 함."""
+    극단치(예: -90%)가 소수 섞여도 전체 수치가 왜곡되지 않도록 함."""
     avg = round(sub["FLUC_RT"].median(), 3)
     up = int((sub["FLUC_RT"] > 0).sum()); down = int((sub["FLUC_RT"] < 0).sum())
-    top3 = sub.nlargest(3, "FLUC_RT")[["ISU_NM", "FLUC_RT"]].values.tolist()
-    bot3 = sub.nsmallest(3, "FLUC_RT")[["ISU_NM", "FLUC_RT"]].values.tolist()
-    log(f"   - {sector_name:7s}: 중앙값등락률 {avg:+.2f}%  (상승{up}/하락{down}/{len(sub)}종목){tag}")
-    log(f"       상위: {', '.join(f'{n} {v:+.1f}%' for n,v in top3)}")
-    log(f"       하위: {', '.join(f'{n} {v:+.1f}%' for n,v in bot3)}")
+    if verbose:
+        top3 = sub.nlargest(3, "FLUC_RT")[["ISU_NM", "FLUC_RT"]].values.tolist()
+        bot3 = sub.nsmallest(3, "FLUC_RT")[["ISU_NM", "FLUC_RT"]].values.tolist()
+        log(f"   - {sector_name:7s}: 중앙값등락률 {avg:+.2f}%  (상승{up}/하락{down}/{len(sub)}종목){tag}")
+        log(f"       상위: {', '.join(f'{n} {v:+.1f}%' for n,v in top3)}")
+        log(f"       하위: {', '.join(f'{n} {v:+.1f}%' for n,v in bot3)}")
     return avg, up, down
 
-for sector, wics_list in SECTOR_WICS.items():
-    sub = merged[merged["WICS소"].isin(wics_list)]
-    if sub.empty: continue
-    avg, up, down = agg_sector(sub, sector)
-    results.append((target_iso, sector, avg, len(sub), up, down))
+def process_date(bas_dd, verbose):
+    """해당 날짜의 KRX 데이터를 받아 섹터별로 집계. 데이터 없으면 None(휴장일)."""
+    kospi = fetch_market(ENDPOINTS["KOSPI"], bas_dd)
+    kosdaq = fetch_market(ENDPOINTS["KOSDAQ"], bas_dd)
+    if not kospi or not kosdaq:
+        return None
 
-for sector, codes in THEME_BASKETS.items():
-    codes6 = [c.zfill(6) for c in codes]
-    sub = all_rows[all_rows["ISU_CD"].isin(codes6)]
-    if sub.empty: continue
-    avg, up, down = agg_sector(sub, sector, tag=" [테마바스켓]")
-    results.append((target_iso, sector, avg, len(sub), up, down))
+    all_rows = pd.DataFrame(kospi + kosdaq)
+    all_rows["ISU_CD"] = all_rows["ISU_CD"].astype(str).str.zfill(6)
+    all_rows["FLUC_RT"] = pd.to_numeric(all_rows["FLUC_RT"], errors="coerce")
+    all_rows = all_rows.dropna(subset=["FLUC_RT"])
+    if all_rows.empty:
+        return None
 
-# 시장전체 = KOSPI+KOSDAQ 전종목 중앙값
-avg_all, up_all, down_all = agg_sector(all_rows, "시장전체")
-results.append((target_iso, "시장전체", avg_all, len(all_rows), up_all, down_all))
+    merged = all_rows.merge(wics[["종목코드", "WICS소"]],
+                            left_on="ISU_CD", right_on="종목코드", how="left")
+    iso = dt.datetime.strptime(bas_dd, "%Y%m%d").date().isoformat()
+    rows_out = []
 
-con.executemany("INSERT OR REPLACE INTO market_sector VALUES (?,?,?,?,?,?)", results)
-con.commit(); con.close()
-log(f"\n[3/3] 완료: {target_iso} 기준 {len(results)}개 섹터 저장")
+    for sector, wics_list in SECTOR_WICS.items():
+        sub = merged[merged["WICS소"].isin(wics_list)]
+        if sub.empty: continue
+        avg, up, down = agg_sector(sub, sector, verbose=verbose)
+        rows_out.append((iso, sector, avg, len(sub), up, down))
+
+    for sector, codes in THEME_BASKETS.items():
+        codes6 = [c.zfill(6) for c in codes]
+        sub = all_rows[all_rows["ISU_CD"].isin(codes6)]
+        if sub.empty: continue
+        avg, up, down = agg_sector(sub, sector, tag=" [테마바스켓]", verbose=verbose)
+        rows_out.append((iso, sector, avg, len(sub), up, down))
+
+    avg_all, up_all, down_all = agg_sector(all_rows, "시장전체", verbose=verbose)
+    rows_out.append((iso, "시장전체", avg_all, len(all_rows), up_all, down_all))
+    return iso, rows_out, len(kospi), len(kosdaq)
+
+log(f"[1/2] 최근 {BACKFILL_DAYS}일 중 누락된 날짜 확인 (이미 보유: {len(existing)}일)")
+filled, skipped, newest = 0, [], True
+for d in range(0, BACKFILL_DAYS):
+    day = now_kst.date() - dt.timedelta(days=d)
+    iso = day.isoformat()
+    if iso in existing:
+        continue                      # 이미 있음 → 건너뜀 (API 호출 절약)
+    bas_dd = day.strftime("%Y%m%d")
+    out = process_date(bas_dd, verbose=newest)   # 가장 최근 1건만 상세 로그
+    if out is None:
+        skipped.append(iso)           # 휴장일 또는 미공개
+        continue
+    iso_done, rows_out, nk, nq = out
+    con.executemany("INSERT OR REPLACE INTO market_sector VALUES (?,?,?,?,?,?)", rows_out)
+    con.commit()
+    log(f"   [저장] {iso_done}: KOSPI {nk} + KOSDAQ {nq}종목 → {len(rows_out)}개 섹터")
+    filled += 1
+    newest = False
+
+if skipped:
+    log(f"   (데이터 없음/휴장일로 건너뜀: {', '.join(skipped)})")
+
+total_days = con.execute("SELECT COUNT(DISTINCT date) FROM market_sector").fetchone()[0]
+con.close()
+
+log(f"\n[2/2] 완료: 이번 실행에서 {filled}일 신규 저장 / DB 누적 {total_days}일")
+if filled == 0:
+    log("   (새로 채울 날짜 없음 - 이미 최신 상태이거나 KRX 미공개)")
